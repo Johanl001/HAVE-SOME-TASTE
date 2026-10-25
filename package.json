@@ -1,0 +1,17 @@
+{
+  "name": "@taste/core",
+  "version": "1.0.0",
+  "description": "Taste - an LLM point-of-view layer that produces distinct, good-looking design outputs per user",
+  "main": "taste.cli.js",
+  "bin": {
+    "taste": "taste.cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "init": "node taste.cli.js init",
+    "build": "node taste.cli.js build",
+    "critique": "node taste.cli.js critique"
+  },
+  "keywords": ["llm", "design", "taste", "cli"],
+  "license": "MIT"
+}
