@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { TasteEngine } from './core/engine.js';
 import { samplingConfig } from './core/sampler.js';
+import { generate as generateVanilla } from './skills/adapters/vanilla.js';
+import { generate as generateReact } from './skills/adapters/react.js';
+import { generate as generateVue } from './skills/adapters/vue.js';
+import { generate as generateSvelte } from './skills/adapters/svelte.js';
 
 // Minimal LLM adapter interface. Users / deployers plug in their provider.
 // The public repo ships this stub; the real provider is wired at runtime.
@@ -9,6 +13,13 @@ class StubLLM {
     return `[LLM STUB] Seed: ${config.seed}\nPrompt (truncated): ${prompt.slice(0, 200)}...\n\n---\nGenerated output would appear here. Wire a real LLM provider to TasteEngine.\n`;
   }
 }
+
+const ADAPTERS = {
+  vanilla: generateVanilla,
+  react: generateReact,
+  vue: generateVue,
+  svelte: generateSvelte,
+};
 
 function detectStack(cwd) {
   try {
@@ -38,10 +49,17 @@ async function runInit(cwd) {
     const confirm = chunk.toString().trim().toLowerCase();
     if (confirm === 'y' || confirm === 'yes') {
       const result = await engine.build(answers, concept);
+      const stack = detectStack(cwd);
+      const generate = ADAPTERS[stack] || ADAPTERS.vanilla;
+      const { files } = generate({ combo: result.combo, concept });
+
       console.log('\n=== Build Result ===');
-      console.log(result.rawOutput);
+      files.forEach((f) => {
+        console.log(`\n--- ${f.path} ---`);
+        console.log(f.content);
+      });
       console.log('\n=== Critique & Subtract ===');
-      console.log(result.critique);
+      console.log(result.critique.revisedOutput || result.critique);
     } else {
       console.log('Concept rejected. Re-run `taste init` to try again.');
     }

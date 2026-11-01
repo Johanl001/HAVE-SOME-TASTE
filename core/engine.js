@@ -1,14 +1,17 @@
 import { samplingConfig } from './sampler.js';
 import { runQuestionFlow } from '../skills/questions/flow.js';
 import { generateGenericReport, compressProjectContext } from '../skills/critique/generic-report.js';
+import { comboFromAnswers, validateCombo } from '../skills/dimensions/index.js';
+import { SubtractSkill } from '../skills/critique/subtract.js';
 
 // Engine orchestrates: question flow -> concept -> build -> critique.
 // This is the core, public layer of Taste.
 
 export class TasteEngine {
-  constructor({ llm, sampler = samplingConfig } = {}) {
+  constructor({ llm, sampler = samplingConfig, subtract } = {}) {
     this.llm = llm;
     this.sampler = sampler;
+    this.subtract = subtract || new SubtractSkill({ llm });
   }
 
   // Phase 1: Run the 3-question multiple-choice preference flow.
@@ -40,21 +43,28 @@ Output only the concept line, nothing else.
   async build(answers, concept, projectContext = null) {
     const config = this.sampler(answers);
 
+    const combo = comboFromAnswers(answers);
+    const validation = validateCombo(combo);
+    if (!validation.ok) {
+      throw new Error(
+        `Incompatible taste dimensions: ${validation.conflicts
+          .map(([a, b]) => `${a} + ${b}`)
+          .join(', ')}`
+      );
+    }
+
     // Build prompt combining dimensions deck + answers + concept.
-    const buildPrompt = this.buildPrompt(answers, concept, projectContext);
+    const buildPrompt = this.buildPrompt(answers, concept, projectContext, combo);
     const rawOutput = await this.llm.call(buildPrompt, config);
 
     // Critique-and-subtract pass: remove generic / redundant elements.
-    const critiquePrompt = this.critiquePrompt(rawOutput, answers);
-    const critique = await this.llm.call(critiquePrompt, {
-      ...config,
-      temperature: 0.5, // lower temp for tighter editorial decisions
-    });
+    const critique = await this.subtract.run({ rawOutput, answers });
 
     return {
       rawOutput,
       critique,
       config,
+      combo,
     };
   }
 
@@ -65,10 +75,14 @@ Output only the concept line, nothing else.
     return { report, signals };
   }
 
-  buildPrompt(answers, concept, projectContext) {
+  buildPrompt(answers, concept, projectContext, combo) {
     const ctx = projectContext
       ? `\nExisting project context (compressed):\n${JSON.stringify(projectContext, null, 2)}\n`
       : '';
+
+    const dims = Object.entries(combo)
+      .map(([dimension, option]) => `- ${dimension}: ${option.label} — ${option.description}`)
+      .join('\n');
 
     return `
 You are a design engineer with a strong point of view. You do not produce
@@ -78,39 +92,21 @@ User taste answers:
 ${JSON.stringify(answers, null, 2)}
 
 Design concept: "${concept}"
+
+Chosen design dimensions:
+${dims}
 ${ctx}
 
 Build a frontend output that embodies this concept using the chosen design
-dimensions (typography, color logic, layout, motion, voice). Apply the
-concept consistently. Output concrete code/files, not advice.
+dimensions (typography, color logic, layout, motion, voice, wildcard). Apply
+the concept and dimension tokens consistently. Output concrete code/files,
+not advice.
 
 Do not use rounded corners on everything, generic blue, or standard hero
 sections. Be opinionated. Subtract anything that feels average.
 
 Output: code blocks with file paths and contents.
-`.trim();
-  }
-
-  critiquePrompt(rawOutput, answers) {
-    return `
-You are a design editor. Review the generated output below and SUBTRACT -
-remove generic, cliché, or redundant elements. Do not add new elements.
-
-Chosen taste direction:
-${JSON.stringify(answers, null, 2)}
-
-Generated output:
-${rawOutput}
-
-Identify:
-1. Generic/cliché elements (rounded corners on everything, generic blue,
-   stock-photography vibes, standard hero section)
-2. Redundant decoration (shadows, gradients, borders that don't serve hierarchy)
-3. Inconsistencies with the chosen dimensions
-
-Output a SUBTRACT list: specific elements to remove or simplify, plus the
-revised output with those elements removed. Taste is curation, not accumulation.
-`.trim();
+    `.trim();
   }
 }
 
