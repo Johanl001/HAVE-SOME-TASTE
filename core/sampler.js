@@ -14,8 +14,29 @@ export const DEFAULT_SAMPLING = {
 // Derive a deterministic seed from the user's answers so the same
 // answer combination always produces the same draw, while different
 // combinations produce different outputs.
+//
+// Keys are sorted at every nesting level so the hash is stable regardless
+// of key insertion order, and every leaf value is included (a plain
+// JSON.stringify(replacerArray) would drop nested keys).
+function stableStringify(value) {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return '[' + value.map(stableStringify).join(',') + ']';
+  }
+  const keys = Object.keys(value).sort();
+  return (
+    '{' +
+    keys
+      .map((k) => JSON.stringify(k) + ':' + stableStringify(value[k]))
+      .join(',') +
+    '}'
+  );
+}
+
 export function deriveSeed(answers) {
-  const payload = JSON.stringify(answers, Object.keys(answers).sort());
+  const payload = stableStringify(answers || {});
   return createHash('sha256').update(payload).digest('hex');
 }
 

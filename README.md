@@ -45,6 +45,32 @@ tool adapters, before/after showcase.
 Paid layer (separate): critique tool (URL/screenshot audit), generated rule
 files, premium taste packs.
 
+## Before / After Showcase
+
+| Before (generic AI average) | After (Taste opinionated) |
+|---|---|
+| Generic blue primary, rounded corners everywhere, standard hero section | Single dominant hue, intentional corners, editorial or brutalist layout |
+| Bootstrap-default buttons, system font stack | Dimension-matched typography (serif/mono/display), custom scale |
+| Centered max-width container, hamburger menu on desktop | Chosen layout: asymmetric grid, card cluster, or newspaper columns |
+| No motion or generic fade | Chosen motion: subtle fade, stagger, bounce, or morph |
+| Stock-photography vibes | Wildcard accent: paper texture, glitch, hand-drawn borders, gradient mesh |
+
+Every output passes through a mandatory **critique-and-subtract** pass that
+removes generic decoration so results feel distinct, not average.
+
+## Tests
+
+Run the test suite (determinism, diversity, compatibility, cache, latency):
+
+```bash
+npm test
+```
+
+Tests live in `tests/`:
+- `tests/draws/` — determinism & diversity (same answers → same output, different → different)
+- `tests/e2e/` — engine build, compatibility rules, cache layer, subtract, latency
+- `tests/baseline/` — no-Taste generic outputs for comparison
+
 ## License
 
 MIT

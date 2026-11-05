@@ -10,8 +10,18 @@
   "scripts": {
     "init": "node taste.cli.js init",
     "build": "node taste.cli.js build",
-    "critique": "node taste.cli.js critique"
+    "critique": "node taste.cli.js critique",
+    "test": "node --test \"tests/**/*.test.js\""
   },
   "keywords": ["llm", "design", "taste", "cli"],
-  "license": "MIT"
+  "license": "MIT",
+  "files": [
+    "taste.cli.js",
+    "core/",
+    "skills/",
+    "config/"
+  ],
+  "engines": { "node": ">=18" },
+  "repository": { "type": "git", "url": "https://github.com/dhanraj/taste.git" },
+  "author": "Dhanraj Deshmukh"
 }
