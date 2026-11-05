@@ -1,3 +1,4 @@
+import { readFileSync, writeFileSync } from 'fs';
 import { samplingConfig } from './sampler.js';
 import { runQuestionFlow } from '../skills/questions/flow.js';
 import { generateGenericReport, compressProjectContext } from '../skills/critique/generic-report.js';
@@ -8,10 +9,11 @@ import { SubtractSkill } from '../skills/critique/subtract.js';
 // This is the core, public layer of Taste.
 
 export class TasteEngine {
-  constructor({ llm, sampler = samplingConfig, subtract } = {}) {
+  constructor({ llm, sampler = samplingConfig, subtract, config = {} } = {}) {
     this.llm = llm;
     this.sampler = sampler;
     this.subtract = subtract || new SubtractSkill({ llm });
+    this.config = config;
   }
 
   // Phase 1: Run the 3-question multiple-choice preference flow.
@@ -73,6 +75,25 @@ Output only the concept line, nothing else.
     const signals = compressProjectContext(files);
     const report = generateGenericReport(files, signals);
     return { report, signals };
+  }
+
+  // Save a concept (with answers and config) to a JSON file for later reuse
+  // with the `build` command.
+  saveConcept(answers, concept, config = this.config, path = 'taste-concept.json') {
+    const payload = {
+      answers,
+      concept,
+      config,
+      createdAt: new Date().toISOString(),
+    };
+    writeFileSync(path, JSON.stringify(payload, null, 2), 'utf8');
+    return path;
+  }
+
+  // Load a previously saved concept from a JSON file.
+  loadConcept(path = 'taste-concept.json') {
+    const payload = JSON.parse(readFileSync(path, 'utf8'));
+    return payload;
   }
 
   buildPrompt(answers, concept, projectContext, combo) {

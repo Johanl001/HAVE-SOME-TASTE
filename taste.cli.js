@@ -1,19 +1,16 @@
 #!/usr/bin/env node
 import { readFileSync } from 'fs';
+import { createInterface } from 'readline';
 import { TasteEngine } from './core/engine.js';
-import { samplingConfig } from './core/sampler.js';
+import { AnthropicLLM } from './core/llm/anthropic.js';
+import { loadConfig, resolveApiKey, TasteConfigError } from './core/config.js';
+import { writeFiles, FileConflictError } from './core/writer.js';
 import { generate as generateVanilla } from './skills/adapters/vanilla.js';
 import { generate as generateReact } from './skills/adapters/react.js';
 import { generate as generateVue } from './skills/adapters/vue.js';
 import { generate as generateSvelte } from './skills/adapters/svelte.js';
 
-// Minimal LLM adapter interface. Users / deployers plug in their provider.
-// The public repo ships this stub; the real provider is wired at runtime.
-class StubLLM {
-  async call(prompt, config) {
-    return `[LLM STUB] Seed: ${config.seed}\nPrompt (truncated): ${prompt.slice(0, 200)}...\n\n---\nGenerated output would appear here. Wire a real LLM provider to TasteEngine.\n`;
-  }
-}
+const VERSION = '1.0.0';
 
 const ADAPTERS = {
   vanilla: generateVanilla,
@@ -21,6 +18,76 @@ const ADAPTERS = {
   vue: generateVue,
   svelte: generateSvelte,
 };
+
+const SHORT_FLAG_MAP = {
+  k: 'apiKey',
+  m: 'model',
+  o: 'outputDir',
+  f: 'force',
+  v: 'verbose',
+  y: 'yes',
+  h: 'help',
+};
+
+// Parse argv into flags and positionals.
+function parseArgs(argv) {
+  const flags = {};
+  const positionals = [];
+  let i = 0;
+  while (i < argv.length) {
+    const arg = argv[i];
+    if (arg === '--') {
+      positionals.push(...argv.slice(i + 1));
+      break;
+    }
+    if (arg.startsWith('--')) {
+      const eqIdx = arg.indexOf('=');
+      if (eqIdx !== -1) {
+        flags[arg.slice(2, eqIdx)] = arg.slice(eqIdx + 1);
+      } else {
+        const key = arg.slice(2);
+        const next = argv[i + 1];
+        if (next !== undefined && !next.startsWith('-')) {
+          flags[key] = next;
+          i++;
+        } else {
+          flags[key] = true;
+        }
+      }
+    } else if (arg.startsWith('-') && arg.length > 1) {
+      const chars = arg.slice(1);
+      for (let j = 0; j < chars.length; j++) {
+        const key = chars[j];
+        if (j === chars.length - 1) {
+          const next = argv[i + 1];
+          if (next !== undefined && !next.startsWith('-')) {
+            flags[key] = next;
+            i++;
+          } else {
+            flags[key] = true;
+          }
+        } else {
+          // -kvalue style: consume rest as value
+          flags[key] = chars.slice(j + 1);
+          j = chars.length;
+        }
+      }
+    } else {
+      positionals.push(arg);
+    }
+    i++;
+  }
+  return { flags, positionals };
+}
+
+function normalizeFlags(flags) {
+  const normalized = {};
+  for (const [key, value] of Object.entries(flags)) {
+    const mapped = SHORT_FLAG_MAP[key] || key;
+    normalized[mapped] = value;
+  }
+  return normalized;
+}
 
 function detectStack(cwd) {
   try {
@@ -35,45 +102,102 @@ function detectStack(cwd) {
   }
 }
 
-async function runInit(cwd) {
-  const engine = new TasteEngine({ llm: new StubLLM() });
-  const answers = await engine.runQuestions();
-  const { concept, config } = await engine.generateConcept(answers);
-
-  console.log('\n=== Taste Concept ===');
-  console.log(concept);
-  console.log(`\nSeed: ${config.seed}`);
-  console.log('Stack:', detectStack(cwd));
-  console.log('\nConfirm concept? (y/n): ');
-
-  process.stdin.once('data', async (chunk) => {
-    const confirm = chunk.toString().trim().toLowerCase();
-    if (confirm === 'y' || confirm === 'yes') {
-      const result = await engine.build(answers, concept);
-      const stack = detectStack(cwd);
-      const generate = ADAPTERS[stack] || ADAPTERS.vanilla;
-      const { files } = generate({ combo: result.combo, concept });
-
-      console.log('\n=== Build Result ===');
-      files.forEach((f) => {
-        console.log(`\n--- ${f.path} ---`);
-        console.log(f.content);
-      });
-      console.log('\n=== Critique & Subtract ===');
-      console.log(result.critique.revisedOutput || result.critique);
-    } else {
-      console.log('Concept rejected. Re-run `taste init` to try again.');
-    }
-    process.exit(0);
+function askConfirm(prompt) {
+  return new Promise((resolve) => {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(`${prompt} (y/n): `, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
+    });
   });
 }
 
-async function runCritique(cwd) {
-  const engine = new TasteEngine({ llm: new StubLLM() });
+function log(...args) {
+  if (process.env.TASTE_VERBOSE) {
+    console.error('[taste]', ...args);
+  }
+}
+
+async function runInit(cwd, flags) {
+  const config = await loadConfig(flags);
+  const apiKey = resolveApiKey(config);
+
+  if (!apiKey) {
+    throw new TasteConfigError(
+      'Anthropic API key is required. Set ANTHROPIC_API_KEY or pass --api-key.',
+    );
+  }
+
+  const engine = new TasteEngine({
+    llm: new AnthropicLLM({
+      apiKey,
+      model: config.model,
+      maxTokens: config.maxTokens,
+      temperature: config.temperature,
+      retries: config.retries,
+      timeout: config.timeout,
+    }),
+    config,
+  });
+
+  log('Running question flow...');
+  const answers = await engine.runQuestions();
+
+  log('Generating concept...');
+  const { concept, config: samplingConfig } = await engine.generateConcept(answers);
+
+  console.log('\n=== Taste Concept ===');
+  console.log(concept);
+  console.log(`\nSeed: ${samplingConfig.seed}`);
+  console.log('Stack:', detectStack(cwd));
+
+  let confirmed = flags.yes === true;
+  if (!confirmed) {
+    console.log('\nConfirm concept? (y/n): ');
+    confirmed = await askConfirm('Confirm concept');
+  }
+
+  if (!confirmed) {
+    console.log('Concept rejected. Re-run `taste init` to try again.');
+    process.exit(0);
+  }
+
+  log('Building output...');
+  const result = await engine.build(answers, concept);
+
+  const stack = detectStack(cwd);
+  const generate = ADAPTERS[stack] || ADAPTERS.vanilla;
+  const { files: adapterFiles } = generate({ combo: result.combo, concept });
+
+  const outputDir = config.outputDir;
+  const allFiles = [
+    ...adapterFiles,
+    { path: 'taste-concept.json', content: JSON.stringify(
+      { answers, concept, config, seed: samplingConfig.seed },
+      null,
+      2,
+    ) },
+  ];
+
+  log(`Writing ${allFiles.length} file(s) to ${outputDir}...`);
+  const written = writeFiles(allFiles, { outputDir, force: flags.force === true });
+
+  console.log('\n=== Build Complete ===');
+  written.forEach((f) => {
+    const rel = f.replace(outputDir, '').replace(/^\//, '');
+    console.log(`  ${rel}`);
+  });
+  console.log(`\nOutput directory: ${outputDir}`);
+  console.log('Run `taste critique` to audit an existing project for generic design markers.');
+}
+
+async function runCritique(cwd, flags) {
+  const config = await loadConfig(flags);
+  const engine = new TasteEngine({ llm: null, config }); // critique doesn't need LLM
+
   const fs = await import('fs');
   const path = await import('path');
 
-  // Read project files (compressed in engine.improveExisting).
   const files = [];
   function walk(dir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -89,6 +213,7 @@ async function runCritique(cwd) {
   walk(cwd);
 
   const { report } = await engine.improveExisting(files);
+
   console.log('\n=== Taste Generic Report ===');
   console.log(`Report ID: ${report.reportId}`);
   console.log(`Files scanned: ${report.fileCount}`);
@@ -98,36 +223,148 @@ async function runCritique(cwd) {
     console.log('Generic findings:');
     report.genericFindings.forEach((f) => console.log(`  - ${f}`));
   }
-  process.exit(0);
+
+  const outputDir = config.outputDir;
+  const reportPath = path.join(outputDir, 'taste-report.json');
+  writeFiles([{ path: 'taste-report.json', content: JSON.stringify(report, null, 2) }], {
+    outputDir,
+    force: flags.force === true,
+  });
+  console.log(`\nReport written to: ${reportPath}`);
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  const command = args[0];
-  const cwd = process.cwd();
+async function runBuild(cwd, flags) {
+  const config = await loadConfig(flags);
+  const apiKey = resolveApiKey(config);
 
-  if (command === 'init') {
-    await runInit(cwd);
-  } else if (command === 'critique') {
-    await runCritique(cwd);
-  } else if (command === 'build') {
-    console.log('build: use `taste init` to start the question flow.');
-    process.exit(0);
-  } else {
-    console.log(`
-Taste - LLM point-of-view layer
+  if (!apiKey) {
+    throw new TasteConfigError(
+      'Anthropic API key is required. Set ANTHROPIC_API_KEY or pass --api-key.',
+    );
+  }
+
+  const conceptPath = flags.concept || 'taste-concept.json';
+  const engine = new TasteEngine({
+    llm: new AnthropicLLM({
+      apiKey,
+      model: config.model,
+      maxTokens: config.maxTokens,
+      temperature: config.temperature,
+      retries: config.retries,
+      timeout: config.timeout,
+    }),
+    config,
+  });
+
+  const { answers, concept, config: savedConfig } = engine.loadConcept(conceptPath);
+  log(`Loaded concept from ${conceptPath}`);
+
+  const result = await engine.build(answers, concept);
+
+  const stack = detectStack(cwd);
+  const generate = ADAPTERS[stack] || ADAPTERS.vanilla;
+  const { files: adapterFiles } = generate({ combo: result.combo, concept });
+
+  const outputDir = config.outputDir;
+  log(`Writing ${adapterFiles.length} file(s) to ${outputDir}...`);
+  const written = writeFiles(adapterFiles, { outputDir, force: flags.force === true });
+
+  console.log('\n=== Build Complete ===');
+  written.forEach((f) => {
+    const rel = f.replace(outputDir, '').replace(/^\//, '');
+    console.log(`  ${rel}`);
+  });
+  console.log(`\nOutput directory: ${outputDir}`);
+}
+
+function showHelp() {
+  console.log(`
+Taste - LLM point-of-view layer v${VERSION}
 
 Usage:
-  taste init      Run the 3-question taste flow and generate a concept + build
-  taste critique  Audit an existing project for generic design markers
+  taste init [options]      Run the 3-question taste flow and generate a concept + build
+  taste critique [options]  Audit an existing project for generic design markers
+  taste build [options]     Build from a saved concept file
+
+Options:
+  --api-key, -k <key>   Anthropic API key (or set ANTHROPIC_API_KEY)
+  --model, -m <name>    Claude model (default: claude-3-5-sonnet-20241022)
+  --max-tokens <n>      Max output tokens (default: 2000)
+  --temperature <n>     Sampling temperature 0-1 (default: 0.7)
+  --output-dir, -o <dir>  Output directory (default: current directory)
+  --force, -f           Overwrite existing files without prompting
+  --yes, -y             Auto-confirm concept (non-interactive)
+  --config <path>       Path to taste.config.js
+  --verbose, -v         Enable debug logging
+  --help, -h            Show this help
+  --version             Show version
+
+Examples:
+  taste init
+  taste init --yes --output-dir ./dist
+  taste critique --output-dir ./reports
+  taste build --concept taste-concept.json --output-dir ./dist
+
+Config file:
+  Create taste.config.js in your project root to set defaults:
+    export default {
+      model: 'claude-3-5-sonnet-20241022',
+      temperature: 0.7,
+      outputDir: './dist',
+    };
+
+Environment variables:
+  ANTHROPIC_API_KEY, TASTE_MODEL, TASTE_MAX_TOKENS, TASTE_TEMPERATURE,
+  TASTE_OUTPUT_DIR, TASTE_RETRIES, TASTE_TIMEOUT
 
 Drop taste.cli.js into your project and run: node taste.cli.js init
 `);
+}
+
+async function main() {
+  const argv = process.argv.slice(2);
+  const { flags, positionals } = parseArgs(argv);
+  const normalized = normalizeFlags(flags);
+  const cwd = process.cwd();
+
+  if (normalized.help === true || normalized.h === true) {
+    showHelp();
     process.exit(0);
+  }
+
+  if (normalized.version === true) {
+    console.log(VERSION);
+    process.exit(0);
+  }
+
+  const command = positionals[0] || normalized._;
+
+  try {
+    if (command === 'init') {
+      await runInit(cwd, normalized);
+    } else if (command === 'critique') {
+      await runCritique(cwd, normalized);
+    } else if (command === 'build') {
+      await runBuild(cwd, normalized);
+    } else {
+      showHelp();
+      process.exit(1);
+    }
+    process.exit(0);
+  } catch (err) {
+    if (err.name === 'TasteConfigError' || err.name === 'AnthropicLLMError' || err.name === 'FileConflictError') {
+      console.error(`Taste error: ${err.message}`);
+    } else {
+      console.error(`Taste error: ${err.message}`);
+      if (normalized.verbose === true) {
+        console.error(err.stack);
+      }
+    }
+    process.exit(1);
   }
 }
 
 main().catch((err) => {
-  console.error('Taste error:', err.message);
+  console.error(`Taste error: ${err.message}`);
   process.exit(1);
 });
