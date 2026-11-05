@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'fs';
 import { TasteEngine } from './core/engine.js';
 import { samplingConfig } from './core/sampler.js';
 import { generate as generateVanilla } from './skills/adapters/vanilla.js';
@@ -23,7 +24,7 @@ const ADAPTERS = {
 
 function detectStack(cwd) {
   try {
-    const pkg = JSON.parse(require('fs').readFileSync(`${cwd}/package.json`, 'utf8'));
+    const pkg = JSON.parse(readFileSync(`${cwd}/package.json`, 'utf8'));
     const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
     if (deps.react) return 'react';
     if (deps.vue) return 'vue';
