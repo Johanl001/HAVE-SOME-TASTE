@@ -22,6 +22,6 @@
     "config/"
   ],
   "engines": { "node": ">=18" },
-  "repository": { "type": "git", "url": "https://github.com/dhanraj/taste.git" },
+  "repository": { "type": "git", "url": "https://github.com/Johanl001/HAVE-SOME-TASTE.git" },
   "author": "Dhanraj Deshmukh"
 }
