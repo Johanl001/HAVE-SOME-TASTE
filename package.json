@@ -13,7 +13,12 @@
     "critique": "node taste.cli.js critique",
     "test": "node --test \"tests/**/*.test.js\""
   },
-  "keywords": ["llm", "design", "taste", "cli"],
+  "keywords": [
+    "llm",
+    "design",
+    "taste",
+    "cli"
+  ],
   "license": "MIT",
   "files": [
     "taste.cli.js",
@@ -21,7 +26,12 @@
     "skills/",
     "config/"
   ],
-  "engines": { "node": ">=18" },
-  "repository": { "type": "git", "url": "https://github.com/Johanl001/HAVE-SOME-TASTE.git" },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Johanl001/HAVE-SOME-TASTE.git"
+  },
   "author": "Dhanraj Deshmukh"
 }
