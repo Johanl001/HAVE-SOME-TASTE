@@ -55,7 +55,7 @@ function ask(question) {
     const handleLine = (input) => {
       const choice = parseInt(input.trim(), 10);
       if (Number.isNaN(choice) || choice < 1 || choice > question.options.length) {
-        rl.write('  Invalid choice. Try again.\n');
+        process.stdout.write('  Invalid choice. Try again.\n');
         return; // Keep listening on the same interface
       }
       rl.removeListener('line', handleLine);
