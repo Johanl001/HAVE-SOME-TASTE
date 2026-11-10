@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { createInterface } from 'readline';
 import { TasteEngine } from './core/engine.js';
 import { AnthropicLLM } from './core/llm/anthropic.js';
+import { OpenAILLM } from './core/llm/openai.js';
 import { loadConfig, resolveApiKey, TasteConfigError } from './core/config.js';
 import { writeFiles, FileConflictError } from './core/writer.js';
 import { generate as generateVanilla } from './skills/adapters/vanilla.js';
@@ -27,6 +28,8 @@ const SHORT_FLAG_MAP = {
   v: 'verbose',
   y: 'yes',
   h: 'help',
+  p: 'llmProvider',
+  u: 'llmBaseUrl',
 };
 
 // Parse argv into flags and positionals.
@@ -118,25 +121,45 @@ function log(...args) {
   }
 }
 
-async function runInit(cwd, flags) {
-  const config = await loadConfig(flags);
-  const apiKey = resolveApiKey(config);
+// Instantiate the right LLM adapter based on the configured provider.
+// Anthropic -> AnthropicLLM (Anthropic Messages API)
+// anything else (openai, nvidia, openrouter, ...) -> OpenAILLM (OpenAI-compatible API)
+function createLLM(config) {
+  const provider = config.llmProvider || 'anthropic';
+  const apiKey = resolveApiKey(config, provider);
 
   if (!apiKey) {
+    if (provider === 'anthropic') {
+      throw new TasteConfigError(
+        'Anthropic API key is required. Set ANTHROPIC_API_KEY or pass --api-key.',
+      );
+    }
     throw new TasteConfigError(
-      'Anthropic API key is required. Set ANTHROPIC_API_KEY or pass --api-key.',
+      `API key is required for ${provider}. Set NVIDIA_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, or LLM_API_KEY, or pass --api-key.`,
     );
   }
 
+  const llmConfig = {
+    apiKey,
+    model: config.model,
+    maxTokens: config.maxTokens,
+    temperature: config.temperature,
+    retries: config.retries,
+    timeout: config.timeout,
+  };
+
+  if (provider === 'anthropic') {
+    return new AnthropicLLM(llmConfig);
+  }
+
+  return new OpenAILLM({ ...llmConfig, baseUrl: config.llmBaseUrl, provider });
+}
+
+async function runInit(cwd, flags) {
+  const config = await loadConfig(flags);
+
   const engine = new TasteEngine({
-    llm: new AnthropicLLM({
-      apiKey,
-      model: config.model,
-      maxTokens: config.maxTokens,
-      temperature: config.temperature,
-      retries: config.retries,
-      timeout: config.timeout,
-    }),
+    llm: createLLM(config),
     config,
   });
 
@@ -235,24 +258,10 @@ async function runCritique(cwd, flags) {
 
 async function runBuild(cwd, flags) {
   const config = await loadConfig(flags);
-  const apiKey = resolveApiKey(config);
-
-  if (!apiKey) {
-    throw new TasteConfigError(
-      'Anthropic API key is required. Set ANTHROPIC_API_KEY or pass --api-key.',
-    );
-  }
 
   const conceptPath = flags.concept || 'taste-concept.json';
   const engine = new TasteEngine({
-    llm: new AnthropicLLM({
-      apiKey,
-      model: config.model,
-      maxTokens: config.maxTokens,
-      temperature: config.temperature,
-      retries: config.retries,
-      timeout: config.timeout,
-    }),
+    llm: createLLM(config),
     config,
   });
 
@@ -287,8 +296,10 @@ Usage:
   taste build [options]     Build from a saved concept file
 
 Options:
-  --api-key, -k <key>   Anthropic API key (or set ANTHROPIC_API_KEY)
-  --model, -m <name>    Claude model (default: claude-3-5-sonnet-20241022)
+  --api-key, -k <key>   LLM API key (or set ANTHROPIC_API_KEY / NVIDIA_API_KEY / OPENROUTER_API_KEY / OPENAI_API_KEY / LLM_API_KEY)
+  --model, -m <name>    Model name (default: claude-3-5-sonnet-20241022 for anthropic, gpt-4o-mini for openai-compatible)
+  --llm-provider, -p  LLM provider: anthropic, openai, nvidia, openrouter (default: anthropic)
+  --llm-base-url, -u  Custom base URL for OpenAI-compatible providers
   --max-tokens <n>      Max output tokens (default: 2000)
   --temperature <n>     Sampling temperature 0-1 (default: 0.7)
   --output-dir, -o <dir>  Output directory (default: current directory)
@@ -314,8 +325,9 @@ Config file:
     };
 
 Environment variables:
-  ANTHROPIC_API_KEY, TASTE_MODEL, TASTE_MAX_TOKENS, TASTE_TEMPERATURE,
-  TASTE_OUTPUT_DIR, TASTE_RETRIES, TASTE_TIMEOUT
+  ANTHROPIC_API_KEY, NVIDIA_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, LLM_API_KEY,
+  TASTE_LLM_PROVIDER, TASTE_LLM_BASE_URL, TASTE_MODEL, TASTE_MAX_TOKENS,
+  TASTE_TEMPERATURE, TASTE_OUTPUT_DIR, TASTE_RETRIES, TASTE_TIMEOUT
 
 Drop taste.cli.js into your project and run: node taste.cli.js init
 `);
@@ -352,7 +364,12 @@ async function main() {
     }
     process.exit(0);
   } catch (err) {
-    if (err.name === 'TasteConfigError' || err.name === 'AnthropicLLMError' || err.name === 'FileConflictError') {
+    if (
+      err.name === 'TasteConfigError' ||
+      err.name === 'AnthropicLLMError' ||
+      err.name === 'OpenAILLMError' ||
+      err.name === 'FileConflictError'
+    ) {
       console.error(`Taste error: ${err.message}`);
     } else {
       console.error(`Taste error: ${err.message}`);
