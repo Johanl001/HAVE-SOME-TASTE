@@ -87,7 +87,9 @@ function normalizeFlags(flags) {
   const normalized = {};
   for (const [key, value] of Object.entries(flags)) {
     const mapped = SHORT_FLAG_MAP[key] || key;
-    normalized[mapped] = value;
+    // Convert kebab-case to camelCase (e.g., llm-provider -> llmProvider)
+    const camel = mapped.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    normalized[camel] = value;
   }
   return normalized;
 }
