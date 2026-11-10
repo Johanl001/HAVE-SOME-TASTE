@@ -51,16 +51,19 @@ function ask(question) {
     lines.push('');
     lines.push('  Pick a number (1-' + question.options.length + '): ');
     rl.write(lines.join('\n'));
-    rl.on('line', (input) => {
-      rl.close();
+
+    const handleLine = (input) => {
       const choice = parseInt(input.trim(), 10);
       if (Number.isNaN(choice) || choice < 1 || choice > question.options.length) {
         rl.write('  Invalid choice. Try again.\n');
-        resolve(ask(question));
-        return;
+        return; // Keep listening on the same interface
       }
+      rl.removeListener('line', handleLine);
+      rl.close();
       resolve(question.options[choice - 1]);
-    });
+    };
+
+    rl.on('line', handleLine);
   });
 }
 
