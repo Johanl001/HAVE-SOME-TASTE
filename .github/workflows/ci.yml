@@ -23,7 +23,3 @@ jobs:
 
       - name: Run test suite
         run: npm test
-
-      - name: Lint check
-        run: |
-          npx eslint taste.cli.js core/ skills/ tests/ --ext .js || true
