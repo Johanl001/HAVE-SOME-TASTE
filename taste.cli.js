@@ -136,8 +136,18 @@ function createLLM(config) {
         'Anthropic API key is required. Set ANTHROPIC_API_KEY or pass --api-key.',
       );
     }
+    const providerKeyEnv = {
+      nvidia: 'NVIDIA_API_KEY',
+      openrouter: 'OPENROUTER_API_KEY',
+      openai: 'OPENAI_API_KEY',
+    }[provider];
+
+    const keyHint = providerKeyEnv
+      ? `${providerKeyEnv} or LLM_API_KEY`
+      : 'LLM_API_KEY';
+
     throw new TasteConfigError(
-      `API key is required for ${provider}. Set NVIDIA_API_KEY, OPENROUTER_API_KEY, OPENAI_API_KEY, or LLM_API_KEY, or pass --api-key.`,
+      `API key is required for ${provider}. Set ${keyHint}, or pass --api-key.`,
     );
   }
 
