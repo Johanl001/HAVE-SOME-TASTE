@@ -50,10 +50,14 @@ function ask(question) {
     });
     lines.push('');
     lines.push('  Pick a number (1-' + question.options.length + '): ');
-    rl.write(lines.join('\n'));
+    // Use process.stdout directly instead of rl.write — on Windows PowerShell,
+    // rl.write can echo its own output back as a spurious line event, causing
+    // the first input attempt to be rejected as invalid.
+    process.stdout.write(lines.join('\n'));
 
     const handleLine = (input) => {
-      const choice = parseInt(input.trim(), 10);
+      // Strip CR/LF and whitespace (Windows sends \r\n).
+      const choice = parseInt(input.replace(/\r\n/g, '\n').trim(), 10);
       if (Number.isNaN(choice) || choice < 1 || choice > question.options.length) {
         process.stdout.write('  Invalid choice. Try again.\n');
         return; // Keep listening on the same interface
