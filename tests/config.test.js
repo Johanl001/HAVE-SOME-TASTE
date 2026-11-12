@@ -44,6 +44,42 @@ describe('config loading', () => {
     assert.strictEqual(resolveApiKey({}), 'sk-test-123');
   });
 
+  it('resolveApiKey selects the key for the configured provider', () => {
+  process.env = {
+    NVIDIA_API_KEY: 'nvidia-test',
+    OPENROUTER_API_KEY: 'openrouter-test',
+    OPENAI_API_KEY: 'openai-test',
+  };
+
+  assert.strictEqual(
+    resolveApiKey({ llmProvider: 'openrouter' }),
+    'openrouter-test'
+  );
+});
+
+  it('resolveApiKey prioritizes an explicit API key', () => {
+    process.env = {
+      OPENROUTER_API_KEY: 'openrouter-test',
+    };
+
+    assert.strictEqual(
+      resolveApiKey({
+        llmProvider: 'openrouter',
+        apiKey: 'explicit-test',
+      }),
+      'explicit-test'
+    );
+  });
+
+  it('resolveApiKey returns empty string when the provider key is missing', () => {
+    process.env = {};
+
+    assert.strictEqual(
+      resolveApiKey({ llmProvider: 'openrouter' }),
+      ''
+    );
+  });
+
   it('resolveApiKey returns empty string when no key', () => {
     process.env = {};
     assert.strictEqual(resolveApiKey({}), '');
