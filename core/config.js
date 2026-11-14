@@ -25,6 +25,14 @@ const ENV_MAP = {
   TASTE_TIMEOUT: 'timeout',
 };
 
+// Map LLM providers to their API key environment variables.
+const PROVIDER_API_KEY_ENV = {
+  anthropic: 'ANTHROPIC_API_KEY',
+  nvidia: 'NVIDIA_API_KEY',
+  openrouter: 'OPENROUTER_API_KEY',
+  openai: 'OPENAI_API_KEY',
+};
+
 export class TasteConfigError extends Error {
   constructor(message) {
     super(message);
@@ -94,23 +102,17 @@ export async function loadConfig(cliFlags = {}) {
 }
 
 // Resolve the effective API key from config (env or explicit).
-// Falls back to provider-specific env vars when no explicit key is set.
-// When no provider is specified, defaults to checking Anthropic first.
+// Explicit API keys take priority over provider-specific environment variables.
 export function resolveApiKey(config, provider = config.llmProvider) {
   if (config.apiKey) return config.apiKey;
 
-  if (provider === 'anthropic' || !provider) {
+  if (!provider || provider === 'anthropic') {
     return process.env.ANTHROPIC_API_KEY || '';
   }
 
-  // OpenAI-compatible providers: NVIDIA NIM, OpenRouter, OpenAI, etc.
-  return (
-    process.env.NVIDIA_API_KEY ||
-    process.env.OPENROUTER_API_KEY ||
-    process.env.OPENAI_API_KEY ||
-    process.env.LLM_API_KEY ||
-    ''
-  );
+  const envName = PROVIDER_API_KEY_ENV[provider];
+
+  return (envName && process.env[envName]) || process.env.LLM_API_KEY || '';
 }
 
 export default { loadConfig, resolveApiKey, TasteConfigError, DEFAULTS };
