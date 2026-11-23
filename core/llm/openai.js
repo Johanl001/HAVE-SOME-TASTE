@@ -76,6 +76,7 @@ export class OpenAILLM {
           model: config.model || this.model,
           max_tokens: config.maxTokens ?? this.maxTokens,
           temperature: config.temperature ?? this.temperature,
+          seed: config.numericSeed ?? undefined, // OpenAI requires a 32-bit integer
           messages: [{ role: 'user', content: prompt }],
         }),
         signal: controller.signal,

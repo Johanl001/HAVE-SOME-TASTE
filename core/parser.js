@@ -31,8 +31,10 @@ export function extractFilesFromLLM(llmText) {
   const headerBlock = /###?\s+(?:File:\s*)?([^\n\r]+)\r?\n\s*```[\w-]*\r?\n([\s\S]*?)```/g;
   while ((match = headerBlock.exec(llmText)) !== null) {
     const filePath = match[1].trim();
+    // Skip empty paths and a bare "File:" label with no actual path.
+    if (!filePath || filePath.toLowerCase() === 'file:') continue;
     const content = match[2];
-    if (filePath && content.trim()) {
+    if (content.trim()) {
       files.push({ path: filePath, content });
     }
   }

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { deriveSeed, samplingConfig, DEFAULT_SAMPLING } from '../../core/sampler.js';
+import { deriveSeed, deriveNumericSeed, samplingConfig, DEFAULT_SAMPLING } from '../../core/sampler.js';
 import {
   comboFromAnswers,
   validateCombo,
@@ -32,11 +32,22 @@ describe('determinism & diversity', () => {
     assert.notStrictEqual(deriveSeed(answersA), deriveSeed(answersB));
   });
 
+  it('deriveNumericSeed is a signed 32-bit integer and deterministic', () => {
+    const n1 = deriveNumericSeed(answersA);
+    const n2 = deriveNumericSeed(answersA);
+    assert.strictEqual(Number.isInteger(n1), true);
+    assert.ok(n1 >= -2147483648 && n1 <= 2147483647);
+    assert.strictEqual(n1, n2);
+    assert.notStrictEqual(deriveNumericSeed(answersA), deriveNumericSeed(answersB));
+  });
+
   it('samplingConfig returns deterministic config with seed', () => {
     const c1 = samplingConfig(answersA);
     const c2 = samplingConfig(answersA);
     assert.deepStrictEqual(c1, c2);
     assert.strictEqual(c1.seed, deriveSeed(answersA));
+    assert.strictEqual(c1.numericSeed, deriveNumericSeed(answersA));
+    assert.strictEqual(Number.isInteger(c1.numericSeed), true);
     assert.strictEqual(c1.temperature, DEFAULT_SAMPLING.temperature);
     assert.strictEqual(c1.top_p, DEFAULT_SAMPLING.top_p);
     assert.strictEqual(c1.top_k, DEFAULT_SAMPLING.top_k);

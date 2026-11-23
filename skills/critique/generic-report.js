@@ -1,19 +1,24 @@
 import { createHash } from 'crypto';
 
 // Generic design markers commonly found in default AI / boilerplate output.
+// Each marker maps to a regex targeting real CSS/markup signatures rather than
+// naive single-word substring matches (which caused false positives on words
+// like "default", "generic", and "standard").
 // Used by improve-existing mode to name what is generic about a project.
-const GENERIC_MARKERS = [
-  'bootstrap-default-buttons',
-  'generic-blue-primary',
-  'standard-hero-cta',
-  'rounded-corners-everything',
-  'generic-shadow-card',
-  'default-font-stack',
-  'centered-max-width-container',
-  'stock-photography-vibe',
-  'hamburger-menu-on-desktop',
-  'placeholder-lorem-ipsum',
-];
+export const MARKER_PATTERNS = {
+  'bootstrap-default-buttons': /\.btn\s*\{[^}]*background:\s*#007bff/i,
+  'generic-blue-primary': /(?:color|background(?:-color)?)\s*:\s*#007bff/i,
+  'standard-hero-cta': /\.hero\s*\{[^}]*text-align:\s*center/i,
+  'rounded-corners-everything': /border-radius:\s*(?:8px|0\.5rem|6px)/i,
+  'generic-shadow-card': /box-shadow:\s*0\s+\d+px\s+\d+px\s+rgba\(0/i,
+  'default-font-stack': /font-family:\s*(?:-apple-system|system-ui|BlinkMacSystemFont)/i,
+  'centered-max-width-container': /max-width:\s*1200px/i,
+  'stock-photography-vibe': /placeholder|unsplash\.com|picsum/i,
+  'hamburger-menu-on-desktop': /\.hamburger|\.burger|\.menu-toggle/i,
+  'placeholder-lorem-ipsum': /lorem\s+ipsum/i,
+};
+
+const GENERIC_MARKERS = Object.keys(MARKER_PATTERNS);
 
 // Compress existing project context before sending to the LLM.
 // Keeps only design-relevant signals: file names, class names, color tokens,
@@ -55,9 +60,8 @@ export function generateGenericReport(files, compressedSignals) {
     .join(' ')
     .toLowerCase();
 
-  for (const marker of GENERIC_MARKERS) {
-    const keyword = marker.replace(/-/g, ' ');
-    if (joined.includes(keyword.split(' ')[0])) {
+  for (const [marker, pattern] of Object.entries(MARKER_PATTERNS)) {
+    if (pattern.test(joined)) {
       findings.push(marker);
     }
   }

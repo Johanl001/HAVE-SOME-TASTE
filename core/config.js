@@ -1,4 +1,6 @@
 import { readFileSync } from 'fs';
+import { pathToFileURL } from 'url';
+import { resolve as resolvePath } from 'path';
 
 // Default configuration values.
 const DEFAULTS = {
@@ -40,12 +42,23 @@ function parseNumEnv(value) {
 }
 
 // Load config from taste.config.js via dynamic import.
+//
+// ESM dynamic import requires a file:// URL; bare specifiers are treated as
+// npm packages and absolute Windows paths throw ERR_UNSUPPORTED_ESM_URL_SCHEME.
+// Converting via pathToFileURL(resolve(...)).href works on Windows, Linux, and macOS.
 async function loadConfigFile(configPath) {
   try {
-    const mod = await import(configPath);
+    // Convert to file:// URL for cross-platform ESM compatibility.
+    const absPath = resolvePath(configPath);
+    const fileUrl = pathToFileURL(absPath).href;
+    const mod = await import(fileUrl);
     return mod.default || mod;
   } catch (err) {
-    if (err.code === 'ERR_MODULE_NOT_FOUND' || err.code === 'MODULE_NOT_FOUND') {
+    if (
+      err.code === 'ERR_MODULE_NOT_FOUND' ||
+      err.code === 'MODULE_NOT_FOUND' ||
+      err.code === 'ENOENT'
+    ) {
       return {};
     }
     throw new TasteConfigError(`Failed to load config from ${configPath}: ${err.message}`);

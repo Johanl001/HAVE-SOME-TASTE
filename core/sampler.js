@@ -40,12 +40,21 @@ export function deriveSeed(answers) {
   return createHash('sha256').update(payload).digest('hex');
 }
 
+// Derive a signed 32-bit integer seed from the first 8 hex characters of
+// deriveSeed(). OpenAI's /v1/chat/completions requires `seed` to be an int32,
+// not a 64-char hex string.
+export function deriveNumericSeed(answers) {
+  const hex = deriveSeed(answers);
+  return parseInt(hex.slice(0, 8), 16) | 0;
+}
+
 // Build a sampling config seeded from user answers.
 export function samplingConfig(answers, overrides = {}) {
   const seed = deriveSeed(answers);
   return {
     ...DEFAULT_SAMPLING,
     ...overrides,
-    seed,
+    seed,                                        // hex string for Anthropic
+    numericSeed: parseInt(seed.slice(0, 8), 16) | 0, // int32 for OpenAI
   };
 }
