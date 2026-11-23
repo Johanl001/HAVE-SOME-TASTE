@@ -1,0 +1,14 @@
+{
+  "reportId": "34f1db98150d",
+  "generatedAt": "2026-11-23T15:53:13.740Z",
+  "fileCount": 41,
+  "genericFindings": [
+    "bootstrap-default-buttons",
+    "generic-blue-primary",
+    "standard-hero-cta",
+    "rounded-corners-everything",
+    "generic-shadow-card"
+  ],
+  "summary": "Found 5 generic design marker(s). This project leans toward the statistical average.",
+  "recommendation": "Apply a Taste direction to move away from the generic look."
+}

@@ -398,16 +398,16 @@ async function runCritique(cwd, flags) {
 }
 
 async function runBuild(cwd, flags) {
-  const config = await loadConfig(flags);
-
   const conceptPath = flags.concept || 'taste-concept.json';
-  const engine = new TasteEngine({
-    llm: createLLM(config),
-    config,
-  });
+  const engine = new TasteEngine();
 
   const { answers, concept, config: savedConfig } = engine.loadConcept(conceptPath);
   log(`Loaded concept from ${conceptPath}`);
+
+  // Merge: flags take highest precedence, then savedConfig from the concept file.
+  const config = await loadConfig({ ...savedConfig, ...flags });
+  engine.config = config;
+  engine.llm = createLLM(config);
 
   const result = await engine.build(answers, concept);
 

@@ -1,0 +1,33 @@
+{
+  "answers": {
+    "q1": {
+      "optionId": "printed-book",
+      "dimension": "typography",
+      "option": "printed-book",
+      "label": "Calm and spacious, like a printed book"
+    },
+    "q2": {
+      "optionId": "monochrome-asymmetric",
+      "dimension": "color-logic",
+      "option": "monochrome",
+      "label": "Monochrome with one accent, asymmetric grid"
+    },
+    "q3": {
+      "optionId": "bounce-glitch",
+      "dimension": "motion",
+      "option": "bounce",
+      "label": "Bouncy entry with a glitch accent"
+    }
+  },
+  "concept": "A printed book that bounces and glitches",
+  "config": {
+    "model": "nvidia/nemotron-3-ultra-550b-a55b",
+    "maxTokens": 2000,
+    "temperature": 0.7,
+    "retries": 3,
+    "timeout": 120000,
+    "outputDir": "./my-real-test",
+    "llmProvider": "nvidia"
+  },
+  "seed": "3b4da7ddfa2bd627f7a68a697131d8e5b68e0d787dc25745818c92e9934a261a"
+}

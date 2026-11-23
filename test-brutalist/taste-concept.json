@@ -1,0 +1,26 @@
+{
+  "answers": {
+    "q1": {
+      "option": "brutalist"
+    },
+    "q2": {
+      "option": "high-contrast"
+    },
+    "q3": {
+      "option": "bounce"
+    }
+  },
+  "concept": "massive raw forms that bounce with electric contrast",
+  "config": {
+    "model": "nvidia/nemotron-3-ultra-550b-a55b",
+    "maxTokens": 2000,
+    "temperature": 0.7,
+    "retries": 3,
+    "timeout": 120000,
+    "outputDir": "./test-brutalist",
+    "llmProvider": "nvidia",
+    "yes": true,
+    "preset": "brutalist"
+  },
+  "seed": "212cf0868a5f68b56c9144eccf8b208144a99eab4bb2d979c7d8d09609a2b1af"
+}

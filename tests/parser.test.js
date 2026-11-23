@@ -92,18 +92,38 @@ describe('extractFilesFromLLM', () => {
     assert.deepStrictEqual(extractFilesFromLLM(input), []);
   });
 
-  it('prefers annotated blocks over header blocks when both exist', () => {
+  it('extracts filename from inner comment when header is generic', () => {
     const input = [
-      '### File: header.html',
+      '### REVISED OUTPUT',
       '```html',
-      '<h1>header</h1>',
-      '```',
-      '```css file=style.css',
-      'body {}',
+      '<!-- index.html -->',
+      '<!DOCTYPE html>',
       '```',
     ].join('\n');
     const files = extractFilesFromLLM(input);
     assert.strictEqual(files.length, 1);
-    assert.strictEqual(files[0].path, 'style.css');
+    assert.strictEqual(files[0].path, 'index.html');
+  });
+
+  it('extracts filename from inner comment without headers', () => {
+    const input = [
+      '```html',
+      '<!-- app.html -->',
+      '<div>Hello</div>',
+      '```',
+    ].join('\n');
+    const files = extractFilesFromLLM(input);
+    assert.strictEqual(files.length, 1);
+    assert.strictEqual(files[0].path, 'app.html');
+  });
+
+  it('skips generic markdown headers without file extension or inner comment', () => {
+    const input = [
+      '### REVISED OUTPUT',
+      '```html',
+      '<h1>No file comment</h1>',
+      '```',
+    ].join('\n');
+    assert.deepStrictEqual(extractFilesFromLLM(input), []);
   });
 });
