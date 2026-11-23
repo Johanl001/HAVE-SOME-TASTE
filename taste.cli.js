@@ -6,6 +6,7 @@ import { AnthropicLLM } from './core/llm/anthropic.js';
 import { OpenAILLM } from './core/llm/openai.js';
 import { loadConfig, resolveApiKey, TasteConfigError } from './core/config.js';
 import { writeFiles, FileConflictError } from './core/writer.js';
+import { extractFilesFromLLM } from './core/parser.js';
 import { generate as generateVanilla } from './skills/adapters/vanilla.js';
 import { generate as generateReact } from './skills/adapters/react.js';
 import { generate as generateVue } from './skills/adapters/vue.js';
@@ -192,7 +193,11 @@ async function runInit(cwd, flags) {
 
   const stack = detectStack(cwd);
   const generate = ADAPTERS[stack] || ADAPTERS.vanilla;
-  const { files: adapterFiles } = generate({ combo: result.combo, concept });
+
+  // Extract code blocks from the critique-refined LLM output.
+  const llmFiles = extractFilesFromLLM(result.critique?.revisedOutput || result.rawOutput);
+
+  const { files: adapterFiles } = generate({ combo: result.combo, concept, llmFiles });
 
   const outputDir = config.outputDir;
   const allFiles = [
@@ -274,7 +279,11 @@ async function runBuild(cwd, flags) {
 
   const stack = detectStack(cwd);
   const generate = ADAPTERS[stack] || ADAPTERS.vanilla;
-  const { files: adapterFiles } = generate({ combo: result.combo, concept });
+
+  // Extract code blocks from the critique-refined LLM output.
+  const llmFiles = extractFilesFromLLM(result.critique?.revisedOutput || result.rawOutput);
+
+  const { files: adapterFiles } = generate({ combo: result.combo, concept, llmFiles });
 
   const outputDir = config.outputDir;
   log(`Writing ${adapterFiles.length} file(s) to ${outputDir}...`);

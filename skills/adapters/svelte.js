@@ -1,4 +1,10 @@
-export function generate({ combo, concept }) {
+export function generate({ combo, concept, llmFiles = [] }) {
+  // If LLM produced parseable files, use them (with token injection).
+  if (llmFiles.length > 0) {
+    return { files: llmFiles };
+  }
+
+  // Fallback: static template with design tokens (current behavior).
   const typo = combo.typography || {};
   const color = combo['color-logic'] || {};
   const motion = combo.motion || {};

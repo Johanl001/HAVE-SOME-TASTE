@@ -5,18 +5,39 @@ import { loadConfig, resolveApiKey, TasteConfigError } from '../core/config.js';
 describe('config loading', () => {
   const origEnv = { ...process.env };
 
+  const clearTasteEnv = () => {
+    const keys = [
+      'ANTHROPIC_API_KEY',
+      'OPENROUTER_API_KEY',
+      'NVIDIA_API_KEY',
+      'OPENAI_API_KEY',
+      'LLM_API_KEY',
+      'TASTE_LLM_PROVIDER',
+      'TASTE_LLM_BASE_URL',
+      'TASTE_MODEL',
+      'TASTE_MAX_TOKENS',
+      'TASTE_TEMPERATURE',
+      'TASTE_OUTPUT_DIR',
+      'TASTE_RETRIES',
+      'TASTE_TIMEOUT',
+    ];
+    for (const k of keys) {
+      delete process.env[k];
+    }
+  };
+
   afterEach(() => {
-    process.env = { ...origEnv };
-    // Remove taste-specific env vars.
-    for (const key of Object.keys(origEnv)) {
-      if (key.startsWith('ANTHROPIC_') || key.startsWith('TASTE_')) {
+    for (const key of Object.keys(process.env)) {
+      if (!(key in origEnv)) {
         delete process.env[key];
       }
     }
+    Object.assign(process.env, origEnv);
+    clearTasteEnv();
   });
 
   it('returns defaults when no config sources exist', async () => {
-    process.env = {};
+    clearTasteEnv();
     const config = await loadConfig({});
     assert.strictEqual(config.model, 'claude-3-5-sonnet-20241022');
     assert.strictEqual(config.maxTokens, 2000);
@@ -27,25 +48,29 @@ describe('config loading', () => {
   });
 
   it('env vars override defaults', async () => {
-    process.env = { ...origEnv, TASTE_MODEL: 'claude-3-opus', TASTE_TEMPERATURE: '0.9' };
+    clearTasteEnv();
+    process.env.TASTE_MODEL = 'claude-3-opus';
+    process.env.TASTE_TEMPERATURE = '0.9';
     const config = await loadConfig({});
     assert.strictEqual(config.model, 'claude-3-opus');
     assert.strictEqual(config.temperature, 0.9);
   });
 
   it('CLI flags override env vars and defaults', async () => {
-    process.env = { ...origEnv, TASTE_MODEL: 'claude-3-opus' };
+    clearTasteEnv();
+    process.env.TASTE_MODEL = 'claude-3-opus';
     const config = await loadConfig({ model: 'claude-3-haiku' });
     assert.strictEqual(config.model, 'claude-3-haiku');
   });
 
   it('resolveApiKey returns env key', () => {
-    process.env = { ...origEnv, ANTHROPIC_API_KEY: 'sk-test-123' };
+    clearTasteEnv();
+    process.env.ANTHROPIC_API_KEY = 'sk-test-123';
     assert.strictEqual(resolveApiKey({}), 'sk-test-123');
   });
 
   it('resolveApiKey returns empty string when no key', () => {
-    process.env = {};
+    clearTasteEnv();
     assert.strictEqual(resolveApiKey({}), '');
   });
 });

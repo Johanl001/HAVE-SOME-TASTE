@@ -51,6 +51,35 @@ describe('file writer', () => {
     }
   });
 
+  it('never writes any file when a conflict exists (atomic two-phase write)', () => {
+    const testDir = makeTmpDir();
+    try {
+      writeFiles([{ path: 'exists.txt', content: 'original' }], { outputDir: testDir });
+
+      assert.throws(
+        () =>
+          writeFiles(
+            [
+              { path: 'new-file.txt', content: 'never written' },
+              { path: 'exists.txt', content: 'new' },
+            ],
+            { outputDir: testDir },
+          ),
+        FileConflictError,
+      );
+
+      // The non-existent file must never have been written to disk.
+      assert.ok(!fs.existsSync(path.join(testDir, 'new-file.txt')));
+      // The conflicting file must remain untouched.
+      assert.strictEqual(
+        fs.readFileSync(path.join(testDir, 'exists.txt'), 'utf8'),
+        'original',
+      );
+    } finally {
+      cleanup(testDir);
+    }
+  });
+
   it('overwrites existing files with --force', () => {
     const testDir = makeTmpDir();
     try {

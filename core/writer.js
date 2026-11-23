@@ -17,13 +17,19 @@ function isSafePath(outputDir, targetPath) {
   return targetResolved.startsWith(outputDirResolved + sep) || targetResolved === outputDirResolved;
 }
 
-// Write generated files to disk.
+// Write generated files to disk using a two-phase atomic write pattern.
 //
 // files: array of { path, content }
 // options: { outputDir, force }
 // Returns: array of written absolute file paths.
+//
+// Phase 1 validates every path and detects all conflicts without writing any
+// bytes. If conflicts exist and --force is not set, FileConflictError is thrown
+// with zero bytes written, so the workspace is never left partially corrupted.
+// Phase 2 creates directories and commits all files to disk.
 export function writeFiles(files, { outputDir = process.cwd(), force = false } = {}) {
-  const written = [];
+  // Phase 1: Validate ALL files before writing ANY bytes.
+  const planned = [];
   const conflicts = [];
 
   for (const file of files) {
@@ -36,38 +42,27 @@ export function writeFiles(files, { outputDir = process.cwd(), force = false } =
     }
 
     const fullPath = resolve(normalize(join(outputDir, file.path)));
+    planned.push({ fullPath, content: file.content, relativePath: file.path });
 
-    try {
-      mkdirSync(dirname(fullPath), { recursive: true });
-    } catch {
-      // parent dir may already exist; ignore.
-    }
-
-    // Check for existing file conflict.
     try {
       statSync(fullPath);
       conflicts.push(file.path);
-      continue;
     } catch {
-      // file does not exist; safe to write.
+      // File does not exist — safe to write.
     }
-
-    writeFileSync(fullPath, file.content, 'utf8');
-    written.push(fullPath);
   }
 
+  // Abort before ANY disk mutation if conflicts exist.
   if (conflicts.length > 0 && !force) {
     throw new FileConflictError(conflicts);
   }
 
-  // If --force, overwrite the conflicting files.
-  if (conflicts.length > 0 && force) {
-    for (const file of files) {
-      if (!conflicts.includes(file.path)) continue;
-      const fullPath = resolve(normalize(join(outputDir, file.path)));
-      writeFileSync(fullPath, file.content, 'utf8');
-      written.push(fullPath);
-    }
+  // Phase 2: Commit all files (conflicts are overwritten when --force is set).
+  const written = [];
+  for (const item of planned) {
+    mkdirSync(dirname(item.fullPath), { recursive: true });
+    writeFileSync(item.fullPath, item.content, 'utf8');
+    written.push(item.fullPath);
   }
 
   return written;
