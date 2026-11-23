@@ -96,11 +96,37 @@ export class OpenAILLM {
       }
 
       const data = await response.json();
+      if (data.error) {
+        throw new OpenAILLMError(
+          `${this.provider} API error: ${data.error.message || JSON.stringify(data.error)}`,
+          response.status,
+        );
+      }
+
       const choice = data.choices?.[0];
-      const text = choice?.message?.content || '';
+      if (choice?.error) {
+        throw new OpenAILLMError(
+          `${this.provider} API choice error: ${choice.error.message || JSON.stringify(choice.error)}`,
+          response.status,
+        );
+      }
+
+      const text =
+        choice?.message?.content ||
+        choice?.text ||
+        choice?.message?.reasoning ||
+        choice?.message?.reasoning_content ||
+        '';
 
       if (!text) {
-        throw new OpenAILLMError(`${this.provider} returned empty response.`, 200);
+        const finishReason = choice?.finish_reason;
+        const hint = finishReason === 'length'
+          ? ' (Token limit reached before content generation; try increasing --max-tokens).'
+          : '';
+        throw new OpenAILLMError(
+          `${this.provider} returned empty response (model: ${data.model || config.model || this.model}, finish_reason: ${finishReason || 'unknown'}).${hint}`,
+          200,
+        );
       }
 
       return text;
