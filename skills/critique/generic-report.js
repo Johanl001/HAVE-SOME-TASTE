@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 // Used by improve-existing mode to name what is generic about a project.
 export const MARKER_PATTERNS = {
   'bootstrap-default-buttons': /\.btn\s*\{[^}]*background:\s*#007bff/i,
-  'generic-blue-primary': /(?:color|background(?:-color)?)\s*:\s*#007bff/i,
+  'generic-blue-primary': /(?:color|background(?:-color)?)\s*:\s*(?:#007bff|#0d6efd)/i,
   'standard-hero-cta': /\.hero\s*\{[^}]*text-align:\s*center/i,
   'rounded-corners-everything': /border-radius:\s*(?:8px|0\.5rem|6px)/i,
   'generic-shadow-card': /box-shadow:\s*0\s+\d+px\s+\d+px\s+rgba\(0/i,

@@ -8,9 +8,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         node-version: [18, 20, 22]
     steps:
       - name: Checkout repository
@@ -22,4 +23,10 @@ jobs:
           node-version: ${{ matrix.node-version }}
 
       - name: Run test suite
-        run: npm test
+        run: node --test tests/config.test.js tests/core/engine.test.js tests/draws/determinism.test.js tests/e2e/build.test.js tests/e2e/cache.test.js tests/e2e/cli.test.js tests/e2e/compatibility.test.js tests/e2e/latency.test.js tests/e2e/subtract.test.js tests/llm/anthropic.test.js tests/llm/openai.test.js tests/parser.test.js tests/generic-report.test.js tests/writer.test.js
+
+      - name: Verify CLI --help
+        run: node taste.cli.js --help
+
+      - name: Verify CLI --version
+        run: node taste.cli.js --version

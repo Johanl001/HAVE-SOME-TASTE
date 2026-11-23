@@ -24,7 +24,7 @@ function sleep(ms) {
 }
 
 export class AnthropicLLM {
-  constructor({ apiKey, model, maxTokens, temperature, retries, timeout } = {}) {
+  constructor({ apiKey, model, maxTokens, temperature, retries, timeout, sleep: sleepFn } = {}) {
     if (!apiKey) {
       throw new AnthropicLLMError(
         'Anthropic API key is required. Set ANTHROPIC_API_KEY or pass --api-key.',
@@ -36,6 +36,8 @@ export class AnthropicLLM {
     this.temperature = temperature !== undefined ? temperature : DEFAULT_TEMPERATURE;
     this.retries = retries !== undefined ? retries : MAX_RETRIES;
     this.timeout = timeout !== undefined ? timeout : DEFAULT_TIMEOUT;
+    // Injectable sleep (defaults to the real timer) so tests can skip delays.
+    this.sleep = sleepFn ?? sleep;
   }
 
   async call(prompt, config = {}) {
@@ -68,7 +70,7 @@ export class AnthropicLLM {
         const body = await response.text().catch(() => '');
         if ((response.status === 429 || response.status >= 500) && attempt < this.retries) {
           const delay = Math.min(1000 * 2 ** attempt, 10000);
-          await sleep(delay);
+          await this.sleep(delay);
           return this._callWithRetries(prompt, config, attempt + 1);
         }
         throw new AnthropicLLMError(

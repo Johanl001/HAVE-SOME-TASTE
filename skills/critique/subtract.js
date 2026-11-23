@@ -24,6 +24,46 @@ revised output with those elements removed. Taste is curation, not accumulation.
 `.trim();
 }
 
+// Parse the LLM subtract response into structured lists. The prompt asks the
+// model to emit a "SUBTRACT list" (removed + simplified items) plus a revised
+// output, so we pull the list items out of the response while keeping the full
+// text as revisedOutput.
+function parseSubtractResponse(response) {
+  const removed = [];
+  const simplified = [];
+  let current = null; // 'removed' | 'simplified' | null
+
+  for (const rawLine of response.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const heading = line.replace(/^#{1,6}\s*/, '').replace(/:$/, '').toLowerCase();
+    if (heading === 'removed' || heading === 'subtract list' || heading === 'subtract') {
+      current = 'removed';
+      continue;
+    }
+    if (heading === 'simplified') {
+      current = 'simplified';
+      continue;
+    }
+    if (heading.startsWith('revised')) {
+      current = null;
+      continue;
+    }
+
+    const isListItem = /^[-*•]\s/.test(line) || /^\d+[\.)]\s/.test(line);
+    if (isListItem && current) {
+      const text = line.replace(/^[-*•]\s*/, '').replace(/^\d+[\.)]\s*/, '').trim();
+      if (text) {
+        if (current === 'removed') removed.push(text);
+        else simplified.push(text);
+      }
+    }
+  }
+
+  return { removed, simplified };
+}
+
 export class SubtractSkill {
   constructor({ llm } = {}) {
     this.llm = llm;
@@ -33,9 +73,11 @@ export class SubtractSkill {
     const prompt = buildSubtractPrompt(answers, rawOutput);
     const result = await this.llm.call(prompt, { temperature: 0.5 });
 
+    const { removed, simplified } = parseSubtractResponse(result);
+
     return {
-      removed: [],
-      simplified: [],
+      removed,
+      simplified,
       rationale: 'Critique-and-subtract pass applied.',
       revisedOutput: result,
     };

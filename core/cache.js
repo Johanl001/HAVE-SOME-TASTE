@@ -112,7 +112,6 @@ export default {
   cacheHas,
   cacheStats,
   cacheClear,
-  cacheClear: cacheClear,
   hashInput,
   prefixKey,
   compressContext,

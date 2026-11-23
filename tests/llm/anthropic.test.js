@@ -72,17 +72,10 @@ describe('AnthropicLLM', () => {
       return { ok: true, status: 200, json: async () => ({ content: [{ type: 'text', text: 'success' }] }) };
     };
     try {
-      const llm = new AnthropicLLM({ apiKey: 'sk-test', retries: 3 });
-      // Patch sleep to be instant for fast test.
-      const origSleep = AnthropicLLM.prototype.sleep;
-      AnthropicLLM.prototype.sleep = async () => {};
-      try {
-        const result = await llm.call('prompt');
-        assert.strictEqual(result, 'success');
-        assert.strictEqual(attempts, 3);
-      } finally {
-        AnthropicLLM.prototype.sleep = origSleep;
-      }
+      const llm = new AnthropicLLM({ apiKey: 'sk-test', retries: 3, sleep: async () => {} });
+      const result = await llm.call('prompt');
+      assert.strictEqual(result, 'success');
+      assert.strictEqual(attempts, 3);
     } finally {
       globalThis.fetch = origFetch;
       delete process.env.ANTHROPIC_API_KEY;

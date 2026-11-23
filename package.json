@@ -11,7 +11,7 @@
     "init": "node taste.cli.js init",
     "build": "node taste.cli.js build",
     "critique": "node taste.cli.js critique",
-    "test": "node --test tests/config.test.js tests/draws/determinism.test.js tests/e2e/build.test.js tests/e2e/cache.test.js tests/e2e/cli.test.js tests/e2e/compatibility.test.js tests/e2e/latency.test.js tests/e2e/subtract.test.js tests/llm/anthropic.test.js tests/parser.test.js tests/writer.test.js"
+    "test": "node --test tests/config.test.js tests/core/engine.test.js tests/draws/determinism.test.js tests/e2e/build.test.js tests/e2e/cache.test.js tests/e2e/cli.test.js tests/e2e/compatibility.test.js tests/e2e/latency.test.js tests/e2e/subtract.test.js tests/llm/anthropic.test.js tests/llm/openai.test.js tests/parser.test.js tests/generic-report.test.js tests/writer.test.js"
   },
   "keywords": [
     "llm",
@@ -26,6 +26,14 @@
     "skills/",
     "config/"
   ],
+  "exports": {
+    ".": "./taste.cli.js",
+    "./engine": "./core/engine.js",
+    "./sampler": "./core/sampler.js",
+    "./cache": "./core/cache.js",
+    "./config": "./core/config.js",
+    "./writer": "./core/writer.js"
+  },
   "engines": {
     "node": ">=18"
   },
@@ -33,5 +41,9 @@
     "type": "git",
     "url": "git+https://github.com/Johanl001/HAVE-SOME-TASTE.git"
   },
+  "bugs": {
+    "url": "https://github.com/Johanl001/HAVE-SOME-TASTE/issues"
+  },
+  "homepage": "https://github.com/Johanl001/HAVE-SOME-TASTE#readme",
   "author": "Dhanraj Deshmukh"
 }

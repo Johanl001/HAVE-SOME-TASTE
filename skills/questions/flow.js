@@ -38,7 +38,7 @@ function createInterface() {
 }
 
 function ask(question) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const rl = createInterface();
     const lines = [
       '',
@@ -68,6 +68,16 @@ function ask(question) {
     };
 
     rl.on('line', handleLine);
+
+    // BUG-07: In non-interactive environments (CI, Docker, piped stdin) stdin
+    // closes without input. Reject with a clear error instead of hanging forever.
+    rl.on('close', () => {
+      rl.removeListener('line', handleLine);
+      reject(new Error(
+        'stdin closed before question was answered. ' +
+        'Use --preset or --answers for non-interactive CI execution.'
+      ));
+    });
   });
 }
 
