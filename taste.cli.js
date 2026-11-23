@@ -141,10 +141,17 @@ function detectStack(cwd) {
 
 function askConfirm(prompt) {
   return new Promise((resolve) => {
+    let answered = false;
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     rl.question(`${prompt} (y/n): `, (answer) => {
+      answered = true;
       rl.close();
       resolve(answer.trim().toLowerCase() === 'y' || answer.trim().toLowerCase() === 'yes');
+    });
+    rl.on('close', () => {
+      if (!answered) {
+        resolve(false);
+      }
     });
   });
 }

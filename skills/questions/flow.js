@@ -53,6 +53,7 @@ function ask(question) {
     // Use process.stdout directly instead of rl.write — on Windows PowerShell,
     // rl.write can echo its own output back as a spurious line event, causing
     // the first input attempt to be rejected as invalid.
+    let answered = false;
     process.stdout.write(lines.join('\n'));
 
     const handleLine = (input) => {
@@ -62,22 +63,31 @@ function ask(question) {
         process.stdout.write('  Invalid choice. Try again.\n');
         return; // Keep listening on the same interface
       }
-      rl.removeListener('line', handleLine);
+      answered = true;
+      cleanup();
       rl.close();
       resolve(question.options[choice - 1]);
     };
 
-    rl.on('line', handleLine);
-
     // BUG-07: In non-interactive environments (CI, Docker, piped stdin) stdin
     // closes without input. Reject with a clear error instead of hanging forever.
-    rl.on('close', () => {
+    const handleClose = () => {
+      cleanup();
+      if (!answered) {
+        reject(new Error(
+          'stdin closed before question was answered. ' +
+          'Use --preset or --answers for non-interactive CI execution.'
+        ));
+      }
+    };
+
+    function cleanup() {
       rl.removeListener('line', handleLine);
-      reject(new Error(
-        'stdin closed before question was answered. ' +
-        'Use --preset or --answers for non-interactive CI execution.'
-      ));
-    });
+      rl.removeListener('close', handleClose);
+    }
+
+    rl.on('line', handleLine);
+    rl.on('close', handleClose);
   });
 }
 

@@ -53,4 +53,21 @@ describe('TasteEngine loadConcept schema validation', () => {
     writeFileSync(path, '{ not valid json', 'utf8');
     assert.throws(() => engine.loadConcept(path));
   });
+
+  it('runs interactive question flow when answers are provided', async () => {
+    const { runQuestionFlow } = await import('../../skills/questions/flow.js');
+    setTimeout(() => {
+      process.stdin.emit('data', '1\n');
+      setTimeout(() => {
+        process.stdin.emit('data', '2\n');
+        setTimeout(() => {
+          process.stdin.emit('data', '3\n');
+        }, 20);
+      }, 20);
+    }, 20);
+    const answers = await runQuestionFlow();
+    assert.strictEqual(answers.q1.optionId, 'printed-book');
+    assert.strictEqual(answers.q2.optionId, 'monochrome-asymmetric');
+    assert.strictEqual(answers.q3.optionId, 'bounce-glitch');
+  });
 });
